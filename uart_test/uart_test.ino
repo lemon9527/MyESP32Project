@@ -37,6 +37,11 @@ static const uint8_t cmd_gzp_read[]     = {0x2E, 0x53, 0x78, 0x01, 0x01, 0x06, 0
 static uint8_t  bridge_state = 0;
 static uint32_t bridge_timeout = 0;
 
+static bool sensor_fw_saved = false;
+static bool co2_fw_saved = false;
+static char sensor_fw_buf[11];
+static char co2_fw_buf[11];
+
 #include <TFT_eSPI.h>
 #include <lvgl.h>
 
@@ -143,10 +148,14 @@ void process_frame() {
   Serial.println(fw);
 
   char display_text[32];
-  snprintf(display_text, sizeof(display_text), "SensorPCB FW: %s", fw);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_14, LV_PART_MAIN);
-  lv_label_set_text(label, display_text);
-  lv_obj_align(label, LV_ALIGN_TOP_LEFT, 5, 5);
+
+  if (!sensor_fw_saved) {
+    sensor_fw_saved = true;
+    snprintf(display_text, sizeof(display_text), "SensorPCB FW: %s", fw);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_label_set_text(label, display_text);
+    lv_obj_align(label, LV_ALIGN_TOP_LEFT, 5, 5);
+  }
 
   uint16_t audio = R16BE(rx_buffer, AUDIO_OFFSET);
   uint16_t pir   = R16BE(rx_buffer, PIR_OFFSET);
@@ -158,19 +167,23 @@ void process_frame() {
 
   snprintf(display_text, sizeof(display_text), "AUDIO: %u", audio);
   lv_label_set_text(label_audio, display_text);
-  lv_obj_align_to(label_audio, label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
 
   snprintf(display_text, sizeof(display_text), "PIR: %u", pir);
   lv_label_set_text(label_pir, display_text);
-  lv_obj_align_to(label_pir, label_audio, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
 
   snprintf(display_text, sizeof(display_text), "LIGHT: %u", light);
   lv_label_set_text(label_light, display_text);
-  lv_obj_align_to(label_light, label_pir, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
 
-  lv_obj_align_to(label_co2, label_light, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
-  lv_obj_align_to(label_co2_ppm, label_co2, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
-  lv_obj_align_to(label_pressure, label_co2_ppm, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+  static bool sensor_ui_aligned = false;
+  if (!sensor_ui_aligned) {
+    sensor_ui_aligned = true;
+    lv_obj_align_to(label_audio, label, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align_to(label_pir, label_audio, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align_to(label_light, label_pir, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align_to(label_co2, label_light, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align_to(label_co2_ppm, label_co2, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+    lv_obj_align_to(label_pressure, label_co2_ppm, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+  }
 }
 
 void process_bridge() {
@@ -220,11 +233,14 @@ void process_bridge() {
       Serial.print("SW version: ");
       Serial.println(sw_buf);
 
-      char lcd_text[32];
-      snprintf(lcd_text, sizeof(lcd_text), "CO2 Sensor FW: %s", sw_buf);
-      lv_label_set_text(label_co2, lcd_text);
-      lv_obj_align_to(label_co2, label_light, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
-      lv_obj_align_to(label_pressure, label_co2_ppm, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+      if (!co2_fw_saved) {
+        co2_fw_saved = true;
+        char lcd_text[32];
+        snprintf(lcd_text, sizeof(lcd_text), "CO2 Sensor FW: %s", sw_buf);
+        lv_label_set_text(label_co2, lcd_text);
+        lv_obj_align_to(label_co2, label_light, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+        lv_obj_align_to(label_pressure, label_co2_ppm, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+      }
     } else if (br_buf[4] == 0x03) {
       uint16_t ppm = R16BE(br_buf, 6);
       Serial.print("CO2 ppm: ");
@@ -233,8 +249,6 @@ void process_bridge() {
       char ppm_text[32];
       snprintf(ppm_text, sizeof(ppm_text), "CO2 ppm: %u", ppm);
       lv_label_set_text(label_co2_ppm, ppm_text);
-      lv_obj_align_to(label_co2_ppm, label_co2, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
-      lv_obj_align_to(label_pressure, label_co2_ppm, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
     } else if (br_buf[4] == 0x06) {
       uint32_t Dtest = ((uint32_t)br_buf[6] << 16)
                      | ((uint16_t)br_buf[7] << 8)
@@ -248,7 +262,6 @@ void process_bridge() {
       char pres_text[32];
       snprintf(pres_text, sizeof(pres_text), "Pressure: %.2f hPa", pressure);
       lv_label_set_text(label_pressure, pres_text);
-      lv_obj_align_to(label_pressure, label_co2_ppm, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
     }
   }
 }
