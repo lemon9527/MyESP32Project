@@ -89,6 +89,7 @@ static lv_obj_t *label_pressure;
 static lv_obj_t *label_sht;
 static lv_obj_t *label_sgp;
 static lv_obj_t *label_pm;
+static lv_obj_t *label_test;
 
 // LVGL tick 回调，返回 millis()
 static uint32_t my_tick(void) {
@@ -169,6 +170,16 @@ void ui_create(void) {
   lv_obj_set_style_text_color(label_pm, lv_color_white(), LV_PART_MAIN);
   lv_obj_set_style_text_font(label_pm, &lv_font_montserrat_14, LV_PART_MAIN);
   lv_obj_add_flag(label_pm, LV_OBJ_FLAG_HIDDEN);
+
+  label_test = lv_label_create(lv_scr_act());
+  lv_label_set_text(label_test, "testing...");
+  lv_obj_set_style_text_color(label_test, lv_color_white(), LV_PART_MAIN);
+  lv_obj_set_style_text_font(label_test, &lv_font_montserrat_32, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(label_test, lv_color_hex(0x0066CC), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(label_test, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(label_test, 12, LV_PART_MAIN);
+  lv_obj_set_style_radius(label_test, 8, LV_PART_MAIN);
+  lv_obj_align(label_test, LV_ALIGN_BOTTOM_MID, 0, -10);
 }
 
 // 帧解析：校验 header / length / checksum，提取 FW version 并输出
