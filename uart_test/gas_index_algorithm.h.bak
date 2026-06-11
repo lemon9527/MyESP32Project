@@ -1,0 +1,44 @@
+#ifndef GAS_INDEX_ALGORITHM_H
+#define GAS_INDEX_ALGORITHM_H
+
+#include <stdint.h>
+
+typedef struct {
+    float   mMean_VOC;
+    float   mSraw_Std;
+    float   mTau_Mean_Hours;
+    float   mTau_Variance_Hours;
+    float   mSraw_Std_Initial;
+    float   mSamplingInterval;
+    float   mUptime;
+    float   mSlope;
+    float   mOffset;
+    bool    mIsInitialized;
+    int32_t mWarmupCount;
+    float   mWarmupAcc;
+} GasIndexAlgorithmParams;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void GasIndexAlgorithm_init(GasIndexAlgorithmParams *params,
+                            int32_t sampling_interval_s);
+
+void GasIndexAlgorithm_process(GasIndexAlgorithmParams *params,
+                               int32_t sraw,
+                               int32_t *voc_index);
+
+void GasIndexAlgorithm_get_states(const GasIndexAlgorithmParams *params,
+                                  int32_t *state0,
+                                  int32_t *state1);
+
+void GasIndexAlgorithm_set_states(GasIndexAlgorithmParams *params,
+                                  int32_t state0,
+                                  int32_t state1);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

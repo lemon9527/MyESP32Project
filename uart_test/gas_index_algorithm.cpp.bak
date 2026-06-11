@@ -1,0 +1,103 @@
+#include "gas_index_algorithm.h"
+#include <math.h>
+
+void GasIndexAlgorithm_init(GasIndexAlgorithmParams *params,
+                            int32_t sampling_interval_s)
+{
+    params->mMean_VOC            = 0.0f;
+    params->mSraw_Std            = 10000.0f; // variance = (100)^2, warm-up sensitivity
+    params->mTau_Mean_Hours      = 12.0f;
+    params->mTau_Variance_Hours  = 12.0f;
+    params->mSraw_Std_Initial    = 50.0f;   // noise floor after stabilization
+    params->mSamplingInterval    = (float)sampling_interval_s;
+    params->mUptime              = 0.0f;
+    params->mSlope               = 0.0f;
+    params->mOffset              = 0.0f;
+    params->mIsInitialized       = false;
+    params->mWarmupCount         = 0;
+    params->mWarmupAcc           = 0.0f;
+}
+
+static void sort3(float *a, float *b, float *c)
+{
+    if (*a > *b) { float t = *a; *a = *b; *b = t; }
+    if (*a > *c) { float t = *a; *a = *c; *c = t; }
+    if (*b > *c) { float t = *b; *b = *c; *c = t; }
+}
+
+void GasIndexAlgorithm_process(GasIndexAlgorithmParams *params,
+                               int32_t sraw,
+                               int32_t *voc_index)
+{
+    float sraw_f = (float)sraw;
+
+    if (!params->mIsInitialized) {
+        if (params->mWarmupCount == 0) {
+            params->mWarmupAcc = sraw_f;
+        } else if (params->mWarmupCount == 1) {
+            params->mSlope = sraw_f;
+        } else {
+            params->mOffset = sraw_f;
+            float s0 = params->mWarmupAcc;
+            float s1 = params->mSlope;
+            float s2 = params->mOffset;
+            sort3(&s0, &s1, &s2);
+            params->mMean_VOC    = s1;
+            params->mSraw_Std    = 10000.0f; // variance, not std!
+            params->mIsInitialized = true;
+        }
+        params->mWarmupCount++;
+    }
+
+    if (!params->mIsInitialized) {
+        *voc_index = 100;
+        return;
+    }
+
+    // Faster learning during the first hour (sensor warm-up period)
+    float tau_mean_hours     = params->mTau_Mean_Hours;
+    float tau_variance_hours = params->mTau_Variance_Hours;
+    float std_floor          = params->mSraw_Std_Initial;   // 50 after stabilization
+    float warmup_hours = 1.0f;
+    if (params->mUptime < warmup_hours * 3600.0f) {
+        tau_mean_hours     = 0.3f;   // faster mean tracking during warm-up
+        tau_variance_hours = 0.5f;   // faster variance learning
+        std_floor          = 5.0f;   // allow std to go high initially (low floor)
+    }
+
+    float tau_mean     = (tau_mean_hours     * 3600.0f) / params->mSamplingInterval;
+    float tau_variance = (tau_variance_hours * 3600.0f) / params->mSamplingInterval;
+
+    float delta = sraw_f - params->mMean_VOC;
+    params->mMean_VOC  += delta / tau_mean;
+    params->mSraw_Std  += (delta * delta - params->mSraw_Std) / tau_variance;
+
+    float std_dev = sqrtf(params->mSraw_Std);
+    if (std_dev < std_floor) std_dev = std_floor;
+
+    float index = 100.0f + 400.0f * (sraw_f - params->mMean_VOC) / (2.0f * std_dev);
+    if (index < 1.0f)    index = 1.0f;
+    if (index > 500.0f)  index = 500.0f;
+
+    *voc_index = (int32_t)(index + 0.5f);
+
+    params->mUptime += params->mSamplingInterval;
+}
+
+void GasIndexAlgorithm_get_states(const GasIndexAlgorithmParams *params,
+                                  int32_t *state0,
+                                  int32_t *state1)
+{
+    *state0 = (int32_t)(params->mMean_VOC * 1000.0f);
+    *state1 = (int32_t)(params->mSraw_Std * 1000.0f);
+}
+
+void GasIndexAlgorithm_set_states(GasIndexAlgorithmParams *params,
+                                  int32_t state0,
+                                  int32_t state1)
+{
+    params->mMean_VOC = (float)state0 / 1000.0f;
+    params->mSraw_Std = (float)state1 / 1000.0f;
+    if (params->mSraw_Std < 0.0f) params->mSraw_Std = 0.0f;
+    params->mIsInitialized = false;
+}
