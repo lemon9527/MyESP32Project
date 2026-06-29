@@ -1,8 +1,7 @@
 {
-  "idf.currentSetup": "/Users/lemonliu/esp/esp-idf",
+  "idf.currentSetup": "/Users/liuliming/.espressif/v5.3.5/esp-idf",
   "idf.port": "/dev/tty.usbserial-2120",
   "idf.customExtraVars": {
-    "IDF_PYTHON_ENV_PATH": "/Users/lemonliu/.espressif/python_env/idf5.3_py3.11_env",
     "IDF_TARGET": "esp32"
   },
   "idf.openOcdConfigs": [
