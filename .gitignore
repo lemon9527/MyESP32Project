@@ -1,6 +1,7 @@
 # macOS 系统文件
 .DS_Store
 **/.DS_Store
+._*
 
 # ESP-IDF 编译产物
 build/
@@ -27,14 +28,36 @@ __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
+*.egg-info/
 
 # 编译数据库（可选，体积较大）
 compile_commands.json
 **/compile_commands.json
 
-# IDE 配置（VSCode 等）
+# 编译产物
+*.o
+*.obj
+*.elf
+*.map
+*.bin
+*.hex
+*.out
+*.a
+*.so
+*.dll
+*.exe
+
+# IDE 配置
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.sublime-project
+*.sublime-workspace
+
+# 其他
+*.log
+*.tmp
+*.bak
+Thumbs.db
