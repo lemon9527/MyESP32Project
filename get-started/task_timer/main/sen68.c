@@ -124,6 +124,31 @@ esp_err_t sen68_stop_measurement(i2c_master_dev_handle_t dev_handle)
     return ESP_OK;
 }
 
+esp_err_t sen68_set_voc_tuning_params(i2c_master_dev_handle_t dev_handle)
+{
+    int16_t params[6] = {100, 72, 72, 180, 50, 230};
+    uint8_t tx_buf[20];
+
+    tx_buf[0] = (SEN68_CMD_SET_VOC_TUNING >> 8) & 0xFF;
+    tx_buf[1] = SEN68_CMD_SET_VOC_TUNING & 0xFF;
+
+    for (int i = 0; i < 6; i++) {
+        int idx = 2 + i * 3;
+        tx_buf[idx]     = (params[i] >> 8) & 0xFF;
+        tx_buf[idx + 1] = params[i] & 0xFF;
+        tx_buf[idx + 2] = sen68_crc8(&tx_buf[idx], 2);
+    }
+
+    esp_err_t err = i2c_master_transmit(dev_handle, tx_buf, sizeof(tx_buf), -1);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set VOC tuning params: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    ESP_LOGI(TAG, "VOC tuning parameters set");
+    return ESP_OK;
+}
+
 esp_err_t sen68_read_data_ready(i2c_master_dev_handle_t dev_handle, bool *ready)
 {
     esp_err_t err = sen68_send_command(dev_handle, SEN68_CMD_READ_DATA_READY);

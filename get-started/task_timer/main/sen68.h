@@ -13,6 +13,7 @@
 #define SEN68_CMD_READ_SERIAL_NUMBER   0xD033
 #define SEN68_CMD_READ_DEVICE_STATUS   0xD206
 #define SEN68_CMD_CLEAR_DEVICE_STATUS  0xD210
+#define SEN68_CMD_SET_VOC_TUNING       0x60D0
 #define SEN68_CMD_RESET                0xD304
 
 typedef struct {
@@ -34,6 +35,7 @@ esp_err_t sen68_start_measurement(i2c_master_dev_handle_t dev_handle);
 esp_err_t sen68_read_data_ready(i2c_master_dev_handle_t dev_handle, bool *ready);
 esp_err_t sen68_read_measurement(i2c_master_dev_handle_t dev_handle, sen68_data_t *out_data);
 esp_err_t sen68_stop_measurement(i2c_master_dev_handle_t dev_handle);
+esp_err_t sen68_set_voc_tuning_params(i2c_master_dev_handle_t dev_handle);
 
 /*
   I2C Address: 0x6B
@@ -101,12 +103,20 @@ esp_err_t sen68_stop_measurement(i2c_master_dev_handle_t dev_handle);
   Parameter order (matches the SGP40 software algorithm constants in
   `BlofeldFirmware.AQSensor.Driver.VOC.SenSGP40DR4Voc.VocAlgorithm`):
 
-    1. index_offset           -> VOC Index Offset
-    2. learning_time          -> Learning Time Offset Hours (bytes 3..4)
+    1. index_offset           -> VOC Index Offset, 100
+    2. learning_time          -> Learning Time Offset Hours (bytes 3..4), 72
     3. learning_gain          -> Learning Time Gain Hours
     4. gating_max             -> Gating Max Duration Minutes
     5. std_initial            -> Std Initial
     6. gain_factor            -> Gain Factor
+
+      index_offset: 100,
+      learning_time: 72,
+      learning_gain: 72,
+      gating_max: 180,
+      std_initial: 50,
+      gain_factor: 230
+  }
 */
 
 /*

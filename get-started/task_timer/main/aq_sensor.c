@@ -100,6 +100,7 @@ void app_main(void)
         ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &handles.sen68_handle));
         sen68_read_product_name(handles.sen68_handle);
         sen68_read_serial_number(handles.sen68_handle);
+        sen68_set_voc_tuning_params(handles.sen68_handle);
         sen68_start_measurement(handles.sen68_handle);
     } else {
         ESP_LOGI(TAG, "SEN68 not detected.");
