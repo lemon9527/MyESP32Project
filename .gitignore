@@ -56,6 +56,9 @@ compile_commands.json
 *.sublime-project
 *.sublime-workspace
 
+.DS_Store
+**/.DS_Store
+
 # 其他
 *.log
 *.tmp
