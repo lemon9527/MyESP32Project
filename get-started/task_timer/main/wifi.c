@@ -5,9 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
-#define WIFI_SSID      "HONOR-lemon"
-#define WIFI_PASS      "13913155042"
-#define WIFI_MAX_RETRY 5
+#define WIFI_MAX_RETRY 3
 
 static const char *TAG = "wifi";
 static int s_retry_num = 0;
@@ -15,6 +13,17 @@ static int s_retry_num = 0;
 static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
+
+typedef struct {
+    const char *ssid;
+    const char *password;
+} wifi_network_t;
+
+static const wifi_network_t wifi_list[] = {
+    {"HONOR-lemon", "13913155042"},
+    {"HUAWEI-5FEC", "97395269"},
+};
+#define WIFI_COUNT (sizeof(wifi_list) / sizeof(wifi_list[0]))
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
@@ -53,26 +62,36 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                                                 &wifi_event_handler, NULL));
 
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
-        },
-    };
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "Connecting to %s...", WIFI_SSID);
+    bool connected = false;
+    for (int i = 0; i < WIFI_COUNT; i++) {
+        ESP_LOGI(TAG, "Trying WiFi: %s ...", wifi_list[i].ssid);
 
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                            pdFALSE, pdFALSE, portMAX_DELAY);
+        wifi_config_t wifi_config = {0};
+        strncpy((char *)wifi_config.sta.ssid, wifi_list[i].ssid, 32);
+        strncpy((char *)wifi_config.sta.password, wifi_list[i].password, 64);
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
 
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "WiFi connected successfully");
-    } else {
-        ESP_LOGE(TAG, "WiFi connection failed");
+        s_retry_num = 0;
+        ESP_ERROR_CHECK(esp_wifi_start());
+
+        EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+                                                WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                                pdFALSE, pdFALSE, pdMS_TO_TICKS(15000));
+
+        if (bits & WIFI_CONNECTED_BIT) {
+            ESP_LOGI(TAG, "WiFi connected successfully");
+            connected = true;
+            break;
+        }
+
+        ESP_LOGW(TAG, "Failed to connect to %s", wifi_list[i].ssid);
+        ESP_ERROR_CHECK(esp_wifi_stop());
+    }
+
+    if (!connected) {
+        ESP_LOGE(TAG, "All WiFi networks failed");
     }
 
     ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP,

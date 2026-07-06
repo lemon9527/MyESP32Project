@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -192,7 +193,10 @@ esp_err_t sen68_read_measurement(i2c_master_dev_handle_t dev_handle, sen68_data_
     ESP_LOGI(TAG, "PM1.0: %.1f μg/m³,  PM2.5: %.1f μg/m³,  PM4.0: %.1f μg/m³,  PM10: %.1f μg/m³",
              pm1_0, pm2_5, pm4_0, pm10);
     ESP_LOGI(TAG, "Temperature: %.1f °C,  Humidity: %.1f %%", temp, hum);
-    ESP_LOGI(TAG, "VOC Index: %.1f,  NOx Index: %.1f,  HCHO: %.1f ppb", voc, nox, hcho);
+    float voc_clamped = (voc > 500.0f) ? 500.0f : voc;
+    float tvoc_ppb = (logf(501.0f - voc_clamped) - 6.24f) * (-313.6f);
+
+    ESP_LOGI(TAG, "VOC Index: %.1f -> TVOC: %.1f ppb,  NOx Index: %.1f,  HCHO: %.1f ppb", voc, tvoc_ppb, nox, hcho);
 
     if (out_data) {
         out_data->pm1_0       = pm1_0;
@@ -202,6 +206,7 @@ esp_err_t sen68_read_measurement(i2c_master_dev_handle_t dev_handle, sen68_data_
         out_data->humidity    = hum;
         out_data->temperature = temp;
         out_data->voc_index   = voc;
+        out_data->tvoc_ppb    = tvoc_ppb;
         out_data->nox_index   = nox;
         out_data->hcho        = hcho;
     }

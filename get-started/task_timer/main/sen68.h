@@ -23,6 +23,7 @@ typedef struct {
     float humidity;
     float temperature;
     float voc_index;
+    float tvoc_ppb;
     float nox_index;
     float hcho;
 } sen68_data_t;
