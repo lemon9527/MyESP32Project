@@ -44,7 +44,7 @@ static void aq_measurement_task(void *pvParameters)
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        vTaskDelay(pdMS_TO_TICKS(15000));
     }
 }
 

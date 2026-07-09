@@ -72,7 +72,7 @@ void cloud_publish_am2020_measurement(const am2020_data_t *data)
              data->temperature,
              data->humidity);
 
-    esp_mqtt_client_publish(mqtt_client, "sensor/am2020", payload, 0, 1, 0);
+    esp_mqtt_client_publish(mqtt_client, "sensor/am2020", payload, 0, 1, 1);
     ESP_LOGI(TAG, "[AM2020] %s", payload);
 }
 
@@ -105,6 +105,6 @@ void cloud_publish_sen68_measurement(const sen68_data_t *data)
              data->nox_index,
              data->hcho);
 
-    esp_mqtt_client_publish(mqtt_client, "sensor/sen68", payload, 0, 1, 0);
+    esp_mqtt_client_publish(mqtt_client, "sensor/sen68", payload, 0, 1, 1);
     ESP_LOGI(TAG, "[SEN68] %s", payload);
 }
