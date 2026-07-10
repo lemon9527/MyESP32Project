@@ -1,6 +1,3 @@
-# VS Code Dev Container
-.devcontainer/
-
 # macOS
 .DS_Store
 .AppleDouble
