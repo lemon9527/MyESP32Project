@@ -5,7 +5,7 @@
 #include "freertos/task.h"
 #include "driver/i2c_master.h"
 #include "am2020.h"
-#include "sen68.h"
+#include "sen6x.h"
 #include "wifi.h"
 #include "cloud.h"
 
@@ -18,9 +18,10 @@ static const char *TAG = "aq_sensor";
 
 typedef struct {
     i2c_master_dev_handle_t am2020_handle;
-    i2c_master_dev_handle_t sen68_handle;
+    i2c_master_dev_handle_t sen6x_handle;
     bool has_am2020;
-    bool has_sen68;
+    bool has_sen6x;
+    sen6x_type_t sen6x_type;
 } sensor_handles_t;
 
 static void aq_measurement_task(void *pvParameters)
@@ -34,13 +35,13 @@ static void aq_measurement_task(void *pvParameters)
                 cloud_publish_am2020_measurement(&data);
             }
         }
-        if (handles->has_sen68) {
+        if (handles->has_sen6x) {
             bool ready = false;
-            sen68_read_data_ready(handles->sen68_handle, &ready);
+            sen6x_read_data_ready(handles->sen6x_handle, &ready);
             if (ready) {
-                sen68_data_t sdata;
-                if (sen68_read_measurement(handles->sen68_handle, &sdata) == ESP_OK) {
-                    cloud_publish_sen68_measurement(&sdata);
+                sen6x_data_t sdata = {0};
+                if (sen6x_read_measurement(handles->sen6x_handle, &sdata, handles->sen6x_type) == ESP_OK) {
+                    cloud_publish_sen6x_measurement(&sdata, handles->sen6x_type);
                 }
             }
         }
@@ -88,25 +89,22 @@ void app_main(void)
         ESP_LOGI(TAG, "AM2020 not detected.");
     }
 
-    ESP_LOGI(TAG, "Probing for SEN68 at 0x%02X...", SEN68_SLAVE_ADDR);
-    if (i2c_master_probe(bus_handle, SEN68_SLAVE_ADDR, -1) == ESP_OK) {
-        ESP_LOGI(TAG, "SEN68 detected !");
-        handles.has_sen68 = true;
+    ESP_LOGI(TAG, "Probing for SEN6x at 0x%02X...", SEN6X_SLAVE_ADDR);
+    if (i2c_master_probe(bus_handle, SEN6X_SLAVE_ADDR, -1) == ESP_OK) {
+        handles.has_sen6x = true;
         i2c_device_config_t dev_cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-            .device_address = SEN68_SLAVE_ADDR,
+            .device_address = SEN6X_SLAVE_ADDR,
             .scl_speed_hz = I2C_MASTER_FREQ_HZ,
         };
-        ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &handles.sen68_handle));
-        sen68_read_product_name(handles.sen68_handle);
-        sen68_read_serial_number(handles.sen68_handle);
-        sen68_set_voc_tuning_params(handles.sen68_handle);
-        sen68_start_measurement(handles.sen68_handle);
+        ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &handles.sen6x_handle));
+        sen6x_init(handles.sen6x_handle, &handles.sen6x_type);
+        sen6x_start_measurement(handles.sen6x_handle);
     } else {
-        ESP_LOGI(TAG, "SEN68 not detected.");
+        ESP_LOGI(TAG, "SEN6x not detected.");
     }
 
-    if (!handles.has_am2020 && !handles.has_sen68) {
+    if (!handles.has_am2020 && !handles.has_sen6x) {
         ESP_LOGE(TAG, "No sensor detected. Exiting.");
         ESP_ERROR_CHECK(i2c_del_master_bus(bus_handle));
         return;

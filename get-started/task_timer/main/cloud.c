@@ -54,14 +54,14 @@ void cloud_publish_am2020_measurement(const am2020_data_t *data)
     char payload[512];
     snprintf(payload, sizeof(payload),
              "{"
-             "\"AM2020_TVOC\":%u,"
-             "\"AM2020_NO2\":%u,"
-             "\"AM2020_HCHO\":%u,"
-             "\"AM2020_PM1_0\":%u,"
-             "\"AM2020_PM2_5\":%u,"
-             "\"AM2020_PM10\":%u,"
-             "\"AM2020_Temperature\":%.1f,"
-             "\"AM2020_Humidity\":%.1f"
+             "\"TVOC\":%u,"
+             "\"NO2\":%u,"
+             "\"HCHO\":%u,"
+             "\"PM1_0\":%u,"
+             "\"PM2_5\":%u,"
+             "\"PM10\":%u,"
+             "\"Temperature\":%.1f,"
+             "\"Humidity\":%.1f"
              "}",
              data->tvoc,
              data->no2,
@@ -76,7 +76,7 @@ void cloud_publish_am2020_measurement(const am2020_data_t *data)
     ESP_LOGI(TAG, "[AM2020] %s", payload);
 }
 
-void cloud_publish_sen68_measurement(const sen68_data_t *data)
+void cloud_publish_sen6x_measurement(const sen6x_data_t *data, sen6x_type_t type)
 {
     if (mqtt_client == NULL) {
         return;
@@ -85,15 +85,16 @@ void cloud_publish_sen68_measurement(const sen68_data_t *data)
     char payload[512];
     snprintf(payload, sizeof(payload),
              "{"
-             "\"SEN68_PM1_0\":%.1f,"
-             "\"SEN68_PM2_5\":%.1f,"
-             "\"SEN68_PM4_0\":%.1f,"
-             "\"SEN68_PM10\":%.1f,"
-             "\"SEN68_Temperature\":%.1f,"
-             "\"SEN68_Humidity\":%.1f,"
-             "\"SEN68_TVOC\":%.1f,"
-             "\"SEN68_NOx_Index\":%.1f,"
-             "\"SEN68_HCHO\":%.1f"
+             "\"PM1_0\":%.1f,"
+             "\"PM2_5\":%.1f,"
+             "\"PM4_0\":%.1f,"
+             "\"PM10\":%.1f,"
+             "\"Temperature\":%.1f,"
+             "\"Humidity\":%.1f,"
+             "\"TVOC\":%.1f,"
+             "\"NOx_Index\":%.1f,"
+             "\"HCHO\":%.1f,"
+             "\"CO2\":%.1f"
              "}",
              data->pm1_0,
              data->pm2_5,
@@ -103,8 +104,9 @@ void cloud_publish_sen68_measurement(const sen68_data_t *data)
              data->humidity,
              data->tvoc_ppb,
              data->nox_index,
-             data->hcho);
+             data->hcho,
+             data->co2);
 
-    esp_mqtt_client_publish(mqtt_client, "sensor/sen68", payload, 0, 1, 1);
-    ESP_LOGI(TAG, "[SEN68] %s", payload);
+    esp_mqtt_client_publish(mqtt_client, "sensor/sen6x", payload, 0, 1, 1);
+    ESP_LOGI(TAG, "[%s] %s", (type == SEN6X_TYPE_66) ? "SEN66" : "SEN68", payload);
 }
