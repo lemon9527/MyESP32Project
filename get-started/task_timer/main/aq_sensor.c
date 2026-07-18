@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
@@ -45,7 +47,51 @@ static void aq_measurement_task(void *pvParameters)
                 }
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(15000));
+        vTaskDelay(pdMS_TO_TICKS(20000));
+    }
+}
+
+static void aq_dummy_task(void *pvParameters)
+{
+    ESP_LOGI(TAG, "Dummy data mode: simulating AM2020 + SEN66");
+
+    int tick = 0;
+    while (1) {
+        tick++;
+        float drift = 0.5f * sinf(tick * 0.3f) + ((float)(rand() % 100) / 100.0f - 0.5f);
+
+        am2020_data_t a = {
+            .tvoc = 120 + (int)(drift * 15),
+            .no2 = 15 + (int)(drift * 3),
+            .hcho = 28 + (int)(drift * 4),
+            .pm1_0 = 8 + (int)(drift * 2),
+            .pm2_5 = 12 + (int)(drift * 3),
+            .pm10 = 14 + (int)(drift * 2),
+            .temperature = 25.5f + drift * 1.5f,
+            .humidity = 60.0f + drift * 5.0f,
+        };
+        cloud_publish_am2020_measurement(&a);
+
+        vTaskDelay(pdMS_TO_TICKS(7000));
+
+        drift = 0.5f * sinf(tick * 0.35f) + ((float)(rand() % 100) / 100.0f - 0.5f);
+
+        sen6x_data_t s = {
+            .pm1_0 = 10.5f + drift * 1.0f,
+            .pm2_5 = 11.2f + drift * 1.5f,
+            .pm4_0 = 11.0f + drift * 1.0f,
+            .pm10 = 11.0f + drift * 1.0f,
+            .temperature = 26.0f + drift * 1.0f,
+            .humidity = 55.0f + drift * 4.0f,
+            .voc_index = 80.0f + drift * 10.0f,
+            .tvoc_ppb = 60.0f + drift * 8.0f,
+            .nox_index = 1.0f + drift * 0.3f,
+            .hcho = 0,
+            .co2 = 620.0f + drift * 40.0f,
+        };
+        cloud_publish_sen6x_measurement(&s, SEN6X_TYPE_66);
+
+        vTaskDelay(pdMS_TO_TICKS(13000));
     }
 }
 
@@ -105,8 +151,9 @@ void app_main(void)
     }
 
     if (!handles.has_am2020 && !handles.has_sen6x) {
-        ESP_LOGE(TAG, "No sensor detected. Exiting.");
+        ESP_LOGW(TAG, "No sensor detected. Switching to dummy data mode.");
         ESP_ERROR_CHECK(i2c_del_master_bus(bus_handle));
+        xTaskCreate(aq_dummy_task, "aq_dummy", 4096, NULL, 5, NULL);
         return;
     }
 

@@ -4,7 +4,7 @@
 #include "mqtt_client.h"
 #include "cloud.h"
 
-#define MQTT_BROKER   "v11e4189.ala.dedicated.aliyun.emqxcloud.cn"
+#define MQTT_BROKER   "8.153.89.110"
 #define MQTT_USERNAME "lemon9527"
 #define MQTT_PASSWORD "lemonliu121510"
 
@@ -28,7 +28,7 @@ static void cloud_mqtt_event_handler(void *handler_args, esp_event_base_t base,
 
 void cloud_init(void)
 {
-    ESP_LOGI(TAG, "Connecting to EMQX Cloud at %s:1883...", MQTT_BROKER);
+    ESP_LOGI(TAG, "Connecting to EMQX at %s:1883...", MQTT_BROKER);
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = "mqtt://" MQTT_BROKER,
