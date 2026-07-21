@@ -68,21 +68,14 @@ static void mcuc_parse_fields(const uint8_t *buf, mcuc_data_t *out)
     out->ave_state_sum  = read_u16_le(buf + i); i += 2;
 }
 
-esp_err_t mcuc_uart_read_frame(mcuc_data_t *out_data)
+static esp_err_t mcuc_read_one_frame(uint8_t *buf, size_t buf_size, mcuc_data_t *out)
 {
-    /*
-     * 帧格式: HEAD(2 LE) | LEN(2 LE) | FIELDS(N×2 LE) | CS(2 LE)
-     * LEN = 整帧字节数
-     * CS  = sum(帧头 ~ 最后一个字段) 的 uint16_t
-     */
-    uint8_t buf[MCUC_MAX_FRAME];
-
     /* ---------- 状态机: 逐字节找帧头 2D 23 ---------- */
     int state = 0;
     uint8_t ch;
 
     while (1) {
-        int n = uart_read_bytes(MCUC_UART_PORT, &ch, 1, pdMS_TO_TICKS(100));
+        int n = uart_read_bytes(MCUC_UART_PORT, &ch, 1, pdMS_TO_TICKS(50));
         if (n <= 0) return ESP_ERR_TIMEOUT;
 
         if (state == 0 && ch == MCUC_HEAD_LO) state = 1;
@@ -93,41 +86,47 @@ esp_err_t mcuc_uart_read_frame(mcuc_data_t *out_data)
     buf[0] = MCUC_HEAD_LO;
     buf[1] = MCUC_HEAD_HI;
 
-    /* ---------- 读 length (2 bytes LE) ---------- */
-    int n = uart_read_bytes(MCUC_UART_PORT, buf + 2, 2, pdMS_TO_TICKS(200));
-    if (n < 2) {
-        ESP_LOGW(TAG, "Timeout reading length");
-        return ESP_ERR_TIMEOUT;
-    }
+    int n = uart_read_bytes(MCUC_UART_PORT, buf + 2, 2, pdMS_TO_TICKS(100));
+    if (n < 2) return ESP_ERR_TIMEOUT;
 
     uint16_t frame_len = read_u16_le(buf + 2);
-    if (frame_len < 8 || frame_len > MCUC_MAX_FRAME) {
-        ESP_LOGW(TAG, "Invalid frame length: %u", frame_len);
-        return ESP_FAIL;
-    }
+    if (frame_len < 8 || frame_len > (uint16_t)buf_size) return ESP_FAIL;
 
-    /* ---------- 读剩余部分 (fields + checksum) ---------- */
-    int remain = frame_len - 4; /* 减去 head + length */
-    n = uart_read_bytes(MCUC_UART_PORT, buf + 4, remain, pdMS_TO_TICKS(500));
-    if (n < remain) {
-        ESP_LOGW(TAG, "Short frame: need %d, got %d", remain, n);
-        return ESP_ERR_TIMEOUT;
-    }
+    int remain = frame_len - 4;
+    n = uart_read_bytes(MCUC_UART_PORT, buf + 4, remain, pdMS_TO_TICKS(200));
+    if (n < remain) return ESP_ERR_TIMEOUT;
 
-    /* ---------- 校验 ---------- */
     uint16_t cs_recv = read_u16_le(buf + frame_len - 2);
     uint16_t cs_calc = mcuc_checksum16(buf, frame_len - 2);
-    if (cs_calc != cs_recv) {
-        ESP_LOGW(TAG, "Checksum mismatch: calc=0x%04X recv=0x%04X", cs_calc, cs_recv);
-        ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf, frame_len, ESP_LOG_WARN);
-        return ESP_FAIL;
+    if (cs_calc != cs_recv) return ESP_FAIL;
+
+    mcuc_parse_fields(buf + 4, out);
+    return ESP_OK;
+}
+
+esp_err_t mcuc_uart_read_frame(mcuc_data_t *out_data)
+{
+    /*
+     * 帧格式: HEAD(2 LE) | LEN(2 LE) | FIELDS(N×2 LE) | CS(2 LE)
+     * 连续读帧，只保留最后一条有效帧，丢弃积压的旧帧
+     */
+    uint8_t buf[MCUC_MAX_FRAME];
+    bool got_one = false;
+    mcuc_data_t last;
+
+    while (1) {
+        mcuc_data_t tmp;
+        if (mcuc_read_one_frame(buf, sizeof(buf), &tmp) == ESP_OK) {
+            last = tmp;
+            got_one = true;
+        } else {
+            break;
+        }
     }
 
-    /* ---------- 打印原始 hex ---------- */
-    ESP_LOG_BUFFER_HEX_LEVEL(TAG, buf + 4, remain - 2, ESP_LOG_DEBUG);
+    if (!got_one) return ESP_ERR_TIMEOUT;
 
-    /* ---------- 解析 ---------- */
-    mcuc_parse_fields(buf + 4, out_data);
+    *out_data = last;
 
     ESP_LOGI(TAG, "PM_in: %u/%u/%u  PM_out: %u/%u/%u",
              out_data->pms_in_pm1_0, out_data->pms_in_pm2_5, out_data->pms_in_pm10,

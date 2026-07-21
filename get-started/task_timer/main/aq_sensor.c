@@ -31,6 +31,10 @@ static void aq_measurement_task(void *pvParameters)
 {
     sensor_handles_t *handles = (sensor_handles_t *)pvParameters;
 
+    ESP_LOGI(TAG, "Waiting 60s for sensor warm-up...");
+    vTaskDelay(pdMS_TO_TICKS(60000));
+    ESP_LOGI(TAG, "Warm-up done, starting measurement.");
+
     while (1) {
         if (handles->has_am2020) {
             am2020_data_t data;
@@ -59,45 +63,28 @@ static void aq_measurement_task(void *pvParameters)
 }
 static void aq_dummy_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "Dummy data mode: simulating AM2020 + SEN66");
+    ESP_LOGI(TAG, "Dummy data mode: simulating sensors");
 
     int tick = 0;
     while (1) {
         tick++;
         float drift = 0.5f * sinf(tick * 0.3f) + ((float)(rand() % 100) / 100.0f - 0.5f);
 
-        am2020_data_t a = {
-            .tvoc = 120 + (int)(drift * 15),
-            .no2 = 15 + (int)(drift * 3),
-            .hcho = 28 + (int)(drift * 4),
-            .pm1_0 = 8 + (int)(drift * 2),
-            .pm2_5 = 12 + (int)(drift * 3),
-            .pm10 = 14 + (int)(drift * 2),
-            .temperature = 25.5f + drift * 1.5f,
-            .humidity = 60.0f + drift * 5.0f,
-        };
-        cloud_publish_am2020_measurement(&a);
+        char payload[256];
+        snprintf(payload, sizeof(payload),
+                 "{\"PM1_0\":%d,\"PM2_5\":%d,\"PM10\":%d,"
+                 "\"Temperature\":%.1f,\"Humidity\":%.1f,"
+                 "\"TVOC\":%d,\"CO2\":%.1f}",
+                 8 + (int)(drift * 2),
+                 12 + (int)(drift * 3),
+                 14 + (int)(drift * 2),
+                 25.5f + drift * 1.5f,
+                 60.0f + drift * 5.0f,
+                 120 + (int)(drift * 15),
+                 620.0f + drift * 40.0f);
+        cloud_publish_dummy(payload);
 
-        vTaskDelay(pdMS_TO_TICKS(7000));
-
-        drift = 0.5f * sinf(tick * 0.35f) + ((float)(rand() % 100) / 100.0f - 0.5f);
-
-        sen6x_data_t s = {
-            .pm1_0 = 10.5f + drift * 1.0f,
-            .pm2_5 = 11.2f + drift * 1.5f,
-            .pm4_0 = 11.0f + drift * 1.0f,
-            .pm10 = 11.0f + drift * 1.0f,
-            .temperature = 26.0f + drift * 1.0f,
-            .humidity = 55.0f + drift * 4.0f,
-            .voc_index = 80.0f + drift * 10.0f,
-            .tvoc_ppb = 60.0f + drift * 8.0f,
-            .nox_index = 1.0f + drift * 0.3f,
-            .hcho = 0,
-            .co2 = 620.0f + drift * 40.0f,
-        };
-        cloud_publish_sen6x_measurement(&s, SEN6X_TYPE_66);
-
-        vTaskDelay(pdMS_TO_TICKS(13000));
+        vTaskDelay(pdMS_TO_TICKS(20000));
     }
 }
 
@@ -127,16 +114,20 @@ void app_main(void)
     ESP_LOGI(TAG, "Probing for AM2020 at 0x%02X...", AM2020_SLAVE_ADDR);
     if (i2c_master_probe(bus_handle, AM2020_SLAVE_ADDR, -1) == ESP_OK) {
         ESP_LOGI(TAG, "AM2020 detected !");
-        handles.has_am2020 = true;
         i2c_device_config_t dev_cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
             .device_address = AM2020_SLAVE_ADDR,
             .scl_speed_hz = I2C_MASTER_FREQ_HZ,
         };
         ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &handles.am2020_handle));
-        am2020_read_software_version(handles.am2020_handle);
-        am2020_read_serial_number(handles.am2020_handle);
-        am2020_read_product_name(handles.am2020_handle);
+        if (am2020_read_product_name(handles.am2020_handle) == ESP_OK) {
+            handles.has_am2020 = true;
+            am2020_read_software_version(handles.am2020_handle);
+            am2020_read_serial_number(handles.am2020_handle);
+        } else {
+            ESP_LOGW(TAG, "AM2020 init failed, disabling.");
+            i2c_master_bus_rm_device(handles.am2020_handle);
+        }
     } else {
         ESP_LOGI(TAG, "AM2020 not detected.");
     }
@@ -150,8 +141,14 @@ void app_main(void)
             .scl_speed_hz = I2C_MASTER_FREQ_HZ,
         };
         ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &handles.sen6x_handle));
-        sen6x_init(handles.sen6x_handle, &handles.sen6x_type);
-        sen6x_start_measurement(handles.sen6x_handle);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        if (sen6x_init(handles.sen6x_handle, &handles.sen6x_type) != ESP_OK) {
+            ESP_LOGW(TAG, "SEN6x init failed, disabling.");
+            handles.has_sen6x = false;
+            i2c_master_bus_rm_device(handles.sen6x_handle);
+        } else {
+            sen6x_start_measurement(handles.sen6x_handle);
+        }
     } else {
         ESP_LOGI(TAG, "SEN6x not detected.");
     }

@@ -143,3 +143,12 @@ void cloud_publish_mcuc_measurement(const mcuc_data_t *data)
     esp_mqtt_client_publish(mqtt_client, "sensor/mcuc", payload, 0, 1, 1);
     ESP_LOGI(TAG, "[MCUC] %s", payload);
 }
+
+void cloud_publish_dummy(const char *payload)
+{
+    if (mqtt_client == NULL) {
+        return;
+    }
+    esp_mqtt_client_publish(mqtt_client, "sensor/dummy", payload, 0, 1, 1);
+    ESP_LOGI(TAG, "[DUMMY] %s", payload);
+}
