@@ -110,3 +110,36 @@ void cloud_publish_sen6x_measurement(const sen6x_data_t *data, sen6x_type_t type
     esp_mqtt_client_publish(mqtt_client, "sensor/sen6x", payload, 0, 1, 1);
     ESP_LOGI(TAG, "[%s] %s", (type == SEN6X_TYPE_66) ? "SEN66" : "SEN68", payload);
 }
+
+void cloud_publish_mcuc_measurement(const mcuc_data_t *data)
+{
+    if (mqtt_client == NULL) {
+        return;
+    }
+
+    char payload[512];
+    snprintf(payload, sizeof(payload),
+             "{"
+             "\"PM1_0\":%u,"
+             "\"PM2_5\":%u,"
+             "\"PM10\":%u,"
+             "\"Temperature\":%u,"
+             "\"Humidity\":%u,"
+             "\"TVOC\":%u,"
+             "\"CO2\":%u,"
+             "\"Light\":%u,"
+             "\"Pressure\":%u"
+             "}",
+             data->pms_in_pm1_0,
+             data->pms_in_pm2_5,
+             data->pms_in_pm10,
+             data->temperature,
+             data->humidity,
+             data->tvoc_count,
+             data->co2_count,
+             data->light_state,
+             data->pressure_count);
+
+    esp_mqtt_client_publish(mqtt_client, "sensor/mcuc", payload, 0, 1, 1);
+    ESP_LOGI(TAG, "[MCUC] %s", payload);
+}

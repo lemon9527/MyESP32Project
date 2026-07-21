@@ -10,6 +10,7 @@
 #include "sen6x.h"
 #include "wifi.h"
 #include "cloud.h"
+#include "mcuc_uart.h"
 
 #define I2C_MASTER_SCL_IO           22
 #define I2C_MASTER_SDA_IO           21
@@ -47,10 +48,15 @@ static void aq_measurement_task(void *pvParameters)
                 }
             }
         }
+
+        mcuc_data_t mcuc;
+        if (mcuc_uart_read_frame(&mcuc) == ESP_OK) {
+            cloud_publish_mcuc_measurement(&mcuc);
+        }
+
         vTaskDelay(pdMS_TO_TICKS(20000));
     }
 }
-
 static void aq_dummy_task(void *pvParameters)
 {
     ESP_LOGI(TAG, "Dummy data mode: simulating AM2020 + SEN66");
@@ -157,5 +163,6 @@ void app_main(void)
         return;
     }
 
+    mcuc_uart_init();
     xTaskCreate(aq_measurement_task, "aq_meas", 4096, &handles, 5, NULL);
 }

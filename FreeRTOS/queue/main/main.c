@@ -21,7 +21,7 @@ void task1(void* param)
             ESP_LOGI(TAG,"send_num = %d",send_num);
             send_num++;
         }
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
